@@ -10,7 +10,7 @@ export interface BlockInput {
   label: string;
   value?: string;
   placeholder?: string;
-  inputType?: string;
+  inputType?: 'text' | 'number';
   connected?: Block;
   comparator?: string;
 }

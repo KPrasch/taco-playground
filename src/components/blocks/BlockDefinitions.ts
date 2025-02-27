@@ -95,17 +95,17 @@ export const AVAILABLE_BLOCKS: Block[] = [
     category: BLOCK_CATEGORIES.CONDITIONS,
     label: 'Time Lock',
     inputs: [
-      { 
-        id: 'chain', 
-        type: ['value'], 
-        label: 'Chain ID', 
+      {
+        id: 'chain',
+        type: ['value'],
+        label: 'Chain ID',
         inputType: 'number',
-        placeholder: 'Enter 1, 137, 80002, or 11155111'
+        placeholder: 'Enter any valid chain ID'
       },
-      { 
-        id: 'minTimestamp', 
-        type: ['value'], 
-        label: 'Minimum Timestamp', 
+      {
+        id: 'minTimestamp',
+        type: ['value'],
+        label: 'Minimum Timestamp',
         inputType: 'number',
         placeholder: 'Unix timestamp in seconds'
       },
@@ -123,18 +123,39 @@ export const AVAILABLE_BLOCKS: Block[] = [
     label: 'ERC20 Balance',
     inputs: [
       { id: 'contractAddress', type: ['value'], label: 'Token Address' },
-      { 
-        id: 'chain', 
-        type: ['value'], 
-        label: 'Chain ID', 
+      {
+        id: 'chain',
+        type: ['value'],
+        label: 'Chain ID',
         inputType: 'number',
-        placeholder: 'Enter 1, 137, 80002, or 11155111'
+        placeholder: 'Enter any valid chain ID'
       },
-      { id: 'minBalance', type: ['value'], label: 'Min Balance', inputType: 'number' },
+      { id: 'tokenAmount', type: ['value'], label: 'Token Amount', inputType: 'number' },
     ],
     properties: {
       conditionType: 'contract',
       standardContractType: 'ERC20',
+      method: 'balanceOf',
+      parameters: [':userAddress'],
+      returnValueTest: {
+        comparator: '>',
+        value: 0
+      }
+    }
+  },
+  {
+    id: 'erc721-balance',
+    type: 'condition',
+    category: BLOCK_CATEGORIES.CONDITIONS,
+    label: 'ERC721 Balance',
+    inputs: [
+      { id: 'contractAddress', type: ['value'], label: 'Contract Address' },
+      { id: 'chain', type: ['value'], label: 'Chain ID', inputType: 'number' },
+      { id: 'tokenAmount', type: ['value'], label: 'Min Balance', inputType: 'number' },
+    ],
+    properties: {
+      conditionType: 'contract',
+      standardContractType: 'ERC721',
       method: 'balanceOf',
       parameters: [':userAddress'],
       returnValueTest: {
@@ -173,7 +194,7 @@ export const AVAILABLE_BLOCKS: Block[] = [
     label: 'ETH Balance',
     inputs: [
       { id: 'chain', type: ['value'], label: 'Chain ID', inputType: 'number' },
-      { id: 'minBalance', type: ['value'], label: 'Min Balance (Wei)', inputType: 'number' },
+      { id: 'minBalance', type: ['value'], label: 'Wei', inputType: 'number' },
     ],
     properties: {
       conditionType: 'rpc',
@@ -198,5 +219,30 @@ export const AVAILABLE_BLOCKS: Block[] = [
     properties: {
       conditionType: 'contract',
     }
+  },
+
+  // Json Conditions
+  {
+    id: 'json-rpc',
+    type: 'condition',
+    category: BLOCK_CATEGORIES.CONDITIONS,
+    label: "JSON RPC",
+    inputs: [
+      { id: 'endpoint', type: ['value'], label: 'Endpoint URI', inputType: 'text' },
+      { id: 'method', type: ['value'], label: 'Method Name', inputType: 'text' },
+      { id: 'param_0', type: ['value'], label: 'Parameter 1', inputType: 'text' },
+      { id: 'authorizationToken', type: ['value'], label: 'Authorization Token', inputType: 'text' },
+      { id: 'query', type: ['value'], label: 'JSON Path Query', inputType: 'text' },
+      { id: 'expectedValue', type: ['value'], label: 'Expected Value', inputType: 'text' },
+    ],
+    properties: {
+      conditionType: "json-rpc",
+      canAddParameters: true,
+      parameterCount: 1,
+      returnValueTest: {
+        comparator: '>=',
+        value: 0
+      }
+    }
   }
-]; 
+];

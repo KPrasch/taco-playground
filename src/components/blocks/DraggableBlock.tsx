@@ -222,7 +222,15 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({
       // Handle top-level inputs
       const input = updatedBlock.inputs?.find((input: BlockInput) => input.id === inputId);
       if (input) {
-        input.value = value;
+        // Special handling for chainID inputs to ensure they're properly updated
+        if (inputId === 'chain') {
+          // Store the raw value as entered by the user
+          input.value = value;
+        } else {
+          input.value = value;
+        }
+
+        // Immediately update the block to trigger JSON preview update
         onBlockUpdate(updatedBlock);
       }
     }
@@ -271,6 +279,43 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({
 
     onBlockUpdate(updatedBlock);
   };
+
+  const handleAddParameter = useCallback(() => {
+    if (!onBlockUpdate || !isWorkspaceBlock) return;
+
+    const updatedBlock = JSON.parse(JSON.stringify(block));
+    const paramCount = (updatedBlock.properties?.parameterCount as number) || 1;
+
+    // Create new parameter input
+    const newParam: BlockInput = {
+      id: `param_${paramCount}`,
+      type: ['value'],
+      label: `Parameter ${paramCount + 1}`,
+      inputType: 'text'
+    };
+
+    // Find the index of the last parameter input
+    const lastParamIndex = updatedBlock.inputs.findIndex((input: BlockInput) =>
+      input.id.startsWith('param_') &&
+      parseInt(input.id.split('_')[1]) === paramCount - 1
+    );
+
+    if (lastParamIndex !== -1) {
+      // Insert the new parameter right after the current one
+      updatedBlock.inputs.splice(lastParamIndex + 1, 0, newParam);
+    } else {
+      // Fallback: add to the end if we can't find the current parameter
+      updatedBlock.inputs.push(newParam);
+    }
+
+    // Update parameter count
+    if (!updatedBlock.properties) {
+      updatedBlock.properties = {};
+    }
+    updatedBlock.properties.parameterCount = paramCount + 1;
+
+    onBlockUpdate(updatedBlock);
+  }, [block, onBlockUpdate, isWorkspaceBlock]);
 
   return (
     <div
@@ -351,8 +396,7 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({
               if (block.type === 'condition') {
                 // Check if this is a numeric input that should have a comparator
                 const needsComparator = 
-                  (input.id === 'minBalance' || input.id === 'minTimestamp' || input.id === 'tokenAmount') && 
-                  input.inputType === 'number';
+                  (input.id === 'minBalance' || input.id === 'minTimestamp' || input.id === 'tokenAmount' || input.id === 'tokenId' || input.id === 'expectedValue');
                 
                 return (
                   <div key={input.id} className={`
@@ -364,7 +408,6 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({
                       {needsComparator ? (
                         <div className="flex items-center gap-2">
                           <ComparatorSelect
-                            // @ts-expect-error - We know comparator exists in BlockInput
                             value={input.comparator || '>='}
                             onChange={(value: string) => handleComparatorChange(input.id, value)}
                             className="w-16"
@@ -389,24 +432,38 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({
                           </DropTarget>
                         </div>
                       ) : (
-                        <DropTarget
-                          inputId={input.id}
-                          isWorkspaceBlock={isWorkspaceBlock}
-                          onDrop={handleDrop}
-                          acceptValueBlocks={true}
-                          className="w-full"
-                        >
-                          <input
-                            type={input.inputType || 'text'}
-                            value={input.value || ''}
-                            onChange={(e) => handleValueChange(input.id, e)}
-                            autoComplete="off"
-                            data-form-type="other"
-                            className="w-full px-2 py-1.5 text-sm bg-black/30 border border-white/5 rounded 
-                              focus:outline-none focus:border-white/20 placeholder-white/20"
-                            placeholder={`Enter ${input.label.toLowerCase()}`}
-                          />
-                        </DropTarget>
+                        <div className="flex items-center gap-2">
+                          <DropTarget
+                            inputId={input.id}
+                            isWorkspaceBlock={isWorkspaceBlock}
+                            onDrop={handleDrop}
+                            acceptValueBlocks={true}
+                            className="flex-1"
+                          >
+                            <input
+                              type={input.inputType || 'text'}
+                              value={input.value || ''}
+                              onChange={(e) => handleValueChange(input.id, e)}
+                              autoComplete="off"
+                              data-form-type="other"
+                              className="w-full px-2 py-1.5 text-sm bg-black/30 border border-white/5 rounded
+                                focus:outline-none focus:border-white/20 placeholder-white/20"
+                              placeholder={`Enter ${input.label.toLowerCase()}`}
+                            />
+                          </DropTarget>
+                          {block.properties?.canAddParameters && input.id.startsWith('param_') &&
+                           parseInt(input.id.split('_')[1]) === ((block.properties?.parameterCount ?? 1) - 1) && (
+                            <button
+                              onClick={handleAddParameter}
+                              className="p-1 bg-green-500/70 rounded-full hover:bg-green-500/90 transition-colors duration-200"
+                              title="Add parameter"
+                            >
+                              <svg className="w-3 h-3 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

@@ -1,5 +1,5 @@
 import { Block } from './BlockTypes';
-import { TacoCondition, TimeCondition, ContractCondition, RpcCondition, CompoundCondition, ChainId, ReturnValueTest } from '../../types/taco';
+import { TacoCondition, TimeCondition, ContractCondition, RpcCondition, CompoundCondition, ChainId, ReturnValueTest, JsonRpcCondition } from '../../types/taco';
 import { utils } from 'ethers';
 
 // Helper function to convert an address to EIP-55 checksum format using ethers.js
@@ -20,18 +20,36 @@ export const toChecksumAddress = (address: string): string => {
 
 // Helper function to check if a chain ID is valid
 const isValidChainId = (chainId: number): chainId is ChainId => {
-  return [1, 137, 80002, 11155111].includes(chainId);
+  // Allow any valid number as a chain ID
+  return !isNaN(chainId) && Number.isInteger(chainId) && chainId > 0;
 };
 
 // Helper function to safely convert a string to ChainId
 const parseChainId = (value: string): ChainId => {
-  const parsed = parseInt(value);
-  if (isValidChainId(parsed)) {
-    return parsed;
+  // Ensure we're working with a trimmed string
+  const trimmedValue = value.trim();
+  
+  // If the value is empty, return the default
+  if (!trimmedValue) {
+    return 11155111; // Default to Sepolia
   }
+  
+  const parsed = parseInt(trimmedValue);
+  
+  // Check if the parsed value is a valid chain ID (any positive integer)
+  if (!isNaN(parsed) && Number.isInteger(parsed) && parsed > 0) {
+    // Cast to ChainId type - this is safe since we're allowing any positive integer
+    return parsed as ChainId;
+  }
+  
   // Default to Sepolia if invalid
   return 11155111;
 };
+
+// Helper function for checking whether a string is actually numeric
+export function isNumericString(value: string): boolean {
+  return !isNaN(Number(value));
+}
 
 export const blocksToJson = (blocks: Block[]): TacoCondition | null => {
   if (!blocks.length) return null;
@@ -70,7 +88,7 @@ const blockToJson = (block: Block): TacoCondition | null => {
     } as CompoundCondition;
   } else if (block.type === 'condition') {
     // Handle condition blocks
-    const conditionType = block.properties?.conditionType as 'time' | 'contract' | 'rpc';
+    const conditionType = block.properties?.conditionType as 'time' | 'contract' | 'rpc' | 'json-rpc';
     if (!conditionType) return null;
 
     if (conditionType === 'time') {
@@ -87,15 +105,15 @@ const blockToJson = (block: Block): TacoCondition | null => {
       
       // Add chain ID if present
       const chainInput = block.inputs?.find(input => input.id === 'chain');
-      if (chainInput?.value) {
+      if (chainInput?.value !== undefined) {
+        // Even if the value is empty, we want to process it through parseChainId
+        // which will handle empty values appropriately
         timeCondition.chain = parseChainId(chainInput.value);
       }
       
       // Add timestamp if present
       const timestampInput = block.inputs?.find(input => input.id === 'minTimestamp');
       if (timestampInput?.value) {
-        // Use the comparator if available, default to '>='
-        // @ts-expect-error - We know comparator exists in BlockInput
         const comparator = (timestampInput.comparator || '>=') as '>=' | '>' | '<=' | '<' | '==';
         
         timeCondition.returnValueTest = {
@@ -120,7 +138,8 @@ const blockToJson = (block: Block): TacoCondition | null => {
       
       // Add chain ID if present
       const chainInput = block.inputs?.find(input => input.id === 'chain');
-      if (chainInput?.value) {
+      if (chainInput?.value !== undefined) {
+        // Even if the value is empty, we want to process it through parseChainId
         rpcCondition.chain = parseChainId(chainInput.value);
       }
       
@@ -146,8 +165,6 @@ const blockToJson = (block: Block): TacoCondition | null => {
       // Add balance test if present
       const balanceInput = block.inputs?.find(input => input.id === 'minBalance');
       if (balanceInput?.value) {
-        // Use the comparator if available, default to '>='
-        // @ts-expect-error - We know comparator exists in BlockInput
         const comparator = (balanceInput.comparator || '>=') as '>=' | '>' | '<=' | '<' | '==';
         
         rpcCondition.returnValueTest = {
@@ -157,6 +174,67 @@ const blockToJson = (block: Block): TacoCondition | null => {
       }
       
       return rpcCondition;
+    } else if (conditionType === 'json-rpc') {
+      // JsonRpcCondition
+      const jsonRpcCondition: JsonRpcCondition = {
+        conditionType: 'json-rpc',
+        endpoint: '',
+        method: '',
+        returnValueTest: {
+          comparator: '>=',
+          value: 0
+        }
+      };
+
+      // Add endpoint URI if present
+      const endpointInput = block.inputs?.find(input => input.id === 'endpoint');
+      if (endpointInput?.value) {
+        jsonRpcCondition.endpoint = endpointInput.value;
+      }
+
+      // Add method if present
+      const methodInput = block.inputs?.find(input => input.id === 'method');
+      if (methodInput?.value) {
+        jsonRpcCondition.method = methodInput.value;
+      }
+
+      // Collect all parameter values
+      const paramInputs = block.inputs?.filter(input => input.id.startsWith('param_')) || [];
+      jsonRpcCondition.params = paramInputs
+        .sort((a, b) => {
+          const aNum = parseInt(a.id.split('_')[1]);
+          const bNum = parseInt(b.id.split('_')[1]);
+          return aNum - bNum;
+        })
+        .map(input => input.value || '')
+        .filter(value => value !== '');
+
+      // Add query if present
+      const queryInput = block.inputs?.find(input => input.id === 'query');
+      if (queryInput?.value) {
+        jsonRpcCondition.query = queryInput.value;
+      }
+
+      // Add authorization token only if present and has a value
+      const authTokenInput = block.inputs?.find(input => input.id === 'authorizationToken');
+      if (authTokenInput?.value) {
+        jsonRpcCondition.authorizationToken = authTokenInput.value;
+      }
+
+      // Add return value test if present
+      const expectedValueInput = block.inputs?.find(input => input.id === 'expectedValue');
+      if (expectedValueInput?.value) {
+        const comparator = (expectedValueInput.comparator || '>=') as '>=' | '>' | '<=' | '<' | '==';
+
+        jsonRpcCondition.returnValueTest = {
+          comparator,
+          value: isNumericString(expectedValueInput.value) ? parseInt(expectedValueInput.value) : expectedValueInput.value
+        };
+      } else if (block.properties?.returnValueTest) {
+        jsonRpcCondition.returnValueTest = block.properties.returnValueTest as ReturnValueTest;
+      }
+
+      return jsonRpcCondition;
     } else if (conditionType === 'contract') {
       // Contract condition (e.g., ERC20, ERC721)
       const contractCondition: ContractCondition = {
@@ -173,7 +251,8 @@ const blockToJson = (block: Block): TacoCondition | null => {
       
       // Add chain ID if present
       const chainInput = block.inputs?.find(input => input.id === 'chain');
-      if (chainInput?.value) {
+      if (chainInput?.value !== undefined) {
+        // Even if the value is empty, we want to process it through parseChainId
         contractCondition.chain = parseChainId(chainInput.value);
       }
       
@@ -222,8 +301,6 @@ const blockToJson = (block: Block): TacoCondition | null => {
       // Add return value test if present
       const tokenAmountInput = block.inputs?.find(input => input.id === 'tokenAmount');
       if (tokenAmountInput?.value) {
-        // Use the comparator if available, default to '>='
-        // @ts-expect-error - We know comparator exists in BlockInput
         const comparator = (tokenAmountInput.comparator || '>=') as '>=' | '>' | '<=' | '<' | '==';
         
         contractCondition.returnValueTest = {

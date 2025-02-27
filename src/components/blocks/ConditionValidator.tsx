@@ -30,8 +30,8 @@ const ConditionValidator: React.FC<ConditionValidatorProps> = ({ condition }) =>
         return cond.operands.every(operand => validateCondition(operand));
       }
 
-      // Validate chain ID for all non-compound conditions
-      if (!SUPPORTED_CHAINS.some(chain => chain.id === cond.chain)) {
+      // Validate chain ID for on-chain conditions
+      if ('chain' in cond && !SUPPORTED_CHAINS.some(chain => chain.id === cond.chain)) {
         console.error(`Unsupported chain ID: ${cond.chain}`);
         return false;
       }
@@ -89,6 +89,27 @@ const ConditionValidator: React.FC<ConditionValidatorProps> = ({ condition }) =>
           }
 
           new conditions.base.contract.ContractCondition(baseCondition);
+          return true;
+        }
+
+        case 'json-rpc': {
+          // Create base json rpc condition
+          const baseCondition = {
+            endpoint: cond.endpoint,
+            method: cond.method,
+            returnValueTest: cond.returnValueTest
+          };
+
+          if (cond.params) {
+            Object.assign(baseCondition, { params: cond.params });
+          }
+          if (cond.query) {
+            Object.assign(baseCondition, { query: cond.query });
+          }
+          if (cond.authorizationToken) {
+            Object.assign(baseCondition, { authorizationToken: cond.authorizationToken });
+          }
+          new conditions.base.jsonRpc.JsonRpcCondition(baseCondition);
           return true;
         }
 

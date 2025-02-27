@@ -1,4 +1,4 @@
-import { BlockInput } from './BlockTypes';
+import { BlockInput, BlockProperties } from './BlockTypes';
 
 export interface DragItem {
   id: string;
@@ -6,7 +6,7 @@ export interface DragItem {
   category?: string;
   label: string;
   inputs?: BlockInput[];
-  properties?: Record<string, unknown>;
+  properties?: BlockProperties;
   value?: string;
   isTemplate: boolean;
 }

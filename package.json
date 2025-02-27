@@ -10,8 +10,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@nucypher/taco": "^0.5.0",
-    "@nucypher/taco-auth": "^0.2.0",
+    "@nucypher/taco": "^0.6.0-alpha.2",
+    "@nucypher/taco-auth": "^0.3.0-alpha.2",
     "@walletconnect/ethereum-provider": "^2.11.2",
     "ethers": "^5.7.2",
     "next": "15.1.4",
